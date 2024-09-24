@@ -1,42 +1,28 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service as ChromeService
+# config.py
+import config
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
+import smtplib
+from email.mime.text import MIMEText
+from datetime import datetime
 import time
-import datetime
 import requests
 import json
-from selenium.webdriver.chrome.service import Service
-
-# WebDriver 설정
-#service = ChromeService(executable_path=ChromeDriverManager().install())
-#driver = webdriver.Chrome(service=service)
-driver_path = "D:/Py_code/chromedriver.exe"
-service = Service(driver_path)
-driver = webdriver.Chrome(service=service)
-
-# Flightradar24에서 특정 공항의 도착 페이지 열기
-url = 'https://www.flightradar24.com/airport/cju/arrivals'
-driver.get(url)
-
-# 페이지가 로드될 시간을 대기
-time.sleep(2)
 
 # "continue" 버튼 클릭 (쿠키 메시지 처리)
-try:
-    continue_button = WebDriverWait(driver, 2).until(
-        EC.element_to_be_clickable((By.XPATH, '//button[text()="Continue"]'))
-    )
-    continue_button.click()
-    # 팝업이 닫힐 시간을 대기
-    time.sleep(1)
-except Exception as e:
-    print(f"Error clicking the continue button: {e}")
-
-
-
+def click_continue():
+    try:
+        continue_button = WebDriverWait(config.driver, 2).until(
+            EC.element_to_be_clickable((By.XPATH, '//button[text()="Continue"]'))
+        )
+        continue_button.click()
+        # 팝업이 닫힐 시간을 대기
+        time.sleep(1)
+    except Exception as e:
+        print(f"Error clicking the continue button: {e}")
+    
 
 
 # KakaoTalk 메시지 보내기
@@ -69,9 +55,7 @@ def send_kakao_message(text):
 
 
 # Gmail 보내기
-import smtplib
-from email.mime.text import MIMEText
-from datetime import datetime
+
 def send_email(full_message, sender_email, sender_password, receiver_email):
     # 현재 날짜와 시간 가져오기
     current_time = datetime.now().strftime('%Y-%m-%d(%a) %H:%M')
@@ -100,12 +84,11 @@ def send_email(full_message, sender_email, sender_password, receiver_email):
 
 
 
-# 특정 요소에서 텍스트 가져오기 및 페이지네이션 처리
-disruptions_texts = []
+
 
 def get_disruptions_text():
     try:
-        disruptions_element = WebDriverWait(driver, 2).until(
+        disruptions_element = WebDriverWait(config.driver, 2).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, '.disruptions-carousel'))
         )
         return disruptions_element.text
@@ -115,24 +98,25 @@ def get_disruptions_text():
 
 def go_to_first_page():
     try:
-        first_page_button = driver.find_element(By.CSS_SELECTOR, '.disruptions-carousel__prev')
+        first_page_button = config.driver.find_element(By.CSS_SELECTOR, '.disruptions-carousel__prev')
         while not 'disabled' in first_page_button.get_attribute('class'):
             first_page_button.click()
             time.sleep(1)
-            first_page_button = driver.find_element(By.CSS_SELECTOR, '.disruptions-carousel__prev')
+            first_page_button = config.driver.find_element(By.CSS_SELECTOR, '.disruptions-carousel__prev')
     except Exception as e:
         print(f"Error navigating to the first page: {e}")
 
+# 페이지네이션을 통해 모든 텍스트 수집
 def collect_all_pagination_texts():
     go_to_first_page()  # Ensure we start from the first page
     while True:
         disruptions_text = get_disruptions_text()
         if disruptions_text:
-            disruptions_texts.append(disruptions_text)
+            config.disruptions_texts.append(disruptions_text)
 
         # 다음 페이지 버튼을 찾기
         try:
-            next_button = driver.find_element(By.CSS_SELECTOR, '.disruptions-carousel__next')
+            next_button = config.driver.find_element(By.CSS_SELECTOR, '.disruptions-carousel__next')
             if 'disabled' in next_button.get_attribute('class'):
                 break
             next_button.click()
@@ -141,8 +125,6 @@ def collect_all_pagination_texts():
             print(f"Error clicking the next button: {e}")
             break
 
-# 페이지네이션을 통해 모든 텍스트 수집
-collect_all_pagination_texts()
 
 def fetch_flight_info(driver, flight_number, passenger_number):
     try:
@@ -232,7 +214,6 @@ def fetch_flight_info(driver, flight_number, passenger_number):
 
 
 # 시간 차이 계산 함수
-import datetime
 def calculate_time_difference(scheduled, actual):
     try:
         # 공백 제거
@@ -240,8 +221,8 @@ def calculate_time_difference(scheduled, actual):
         actual = actual.strip()
 
         lines = actual.split("\n")
-        scheduled_time = datetime.datetime.strptime(scheduled, '%I:%M %p')
-        actual_time = datetime.datetime.strptime(lines[len(lines)-1], '%I:%M %p')
+        scheduled_time = datetime.strptime(scheduled, '%I:%M %p')
+        actual_time = datetime.strptime(lines[len(lines)-1], '%I:%M %p')
         time_difference = actual_time - scheduled_time
         minutes_difference = int(time_difference.total_seconds() / 60)
         if minutes_difference > 0:
@@ -289,7 +270,7 @@ def prework_button_click():
 
     # "Load earlier flights" 버튼 클릭
     try:
-        load_earlier_flights_button = WebDriverWait(driver, 2).until(
+        load_earlier_flights_button = WebDriverWait(config.driver, 2).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[data-testid="airport-arrival-departure__load-earlier-flights"]'))
         )
         load_earlier_flights_button.click()
@@ -301,7 +282,7 @@ def prework_button_click():
 
     # "Load later flights" 버튼 클릭
     try:
-        load_later_flights_button = WebDriverWait(driver, 2).until(
+        load_later_flights_button = WebDriverWait(config.driver, 2).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[data-testid="airport-arrival-departure__load-later-flights"]'))
         )
         load_later_flights_button.click()
@@ -309,54 +290,3 @@ def prework_button_click():
         time.sleep(2)
     except Exception as e:
         print(f"Error clicking the load later flights button: {e}")
-
-
-# 실행할 항공편 번호 목록
-flight_numbers = ['KE1055', 'KE1515', 'KE1607', 'KE1709', 'OZ8941', 'KE1569', 'BX8183']
-passenger_numbers = ['1호차 - 8', '1호차 - 3', '2', '3', '16', '1', '4']
-
-
-# 비행 전후 버튼 클릭
-prework_button_click()
-
-# 각 항공편 번호에 대해 정보 가져오기
-all_results = ""
-for i in range(0, len(flight_numbers) , 1) :
-    cleaned_flight_number = flight_numbers[i].strip().upper()
-    all_results += fetch_flight_info(driver, cleaned_flight_number, passenger_numbers[i])
-
-
-# 드라이버 종료
-driver.quit()
-
-# # 수집한 텍스트 출력
-# print( "\n\n\n제주공항 현황\n" + "="*48 )
-# formatted_disruptions = format_disruption_texts(disruptions_texts)
-# print(formatted_disruptions)
-
-# # 항공편 결과 출력
-# print("="*50 + "\n")
-# print(all_results)
-
-# 전체 메세지 내용
-from datetime import datetime
-current_time = datetime.now().strftime('%Y-%m-%d(%a) %H:%M')
-full_message = f"\n\n제주공항 현황 : {current_time}\n" + "="*50 + "\n"
-formatted_disruptions = format_disruption_texts(disruptions_texts)
-full_message += formatted_disruptions + "\n"
-full_message += "="*50 + "\n"
-
-full_message += all_results
-
-print(full_message)
-
-# 수집한 텍스트를 KakaoTalk로 보내기
-# send_kakao_message(full_message)
-
-
-# 수집한 텍스트를 메일로 보내기
-sender_email = 'lym.coastal@gmail.com'
-sender_password = 'oenh ankm dtoj yfsq'
-receiver_email = 'leecl2s@hotmail.com'
-
-send_email(full_message, sender_email, sender_password, receiver_email)
