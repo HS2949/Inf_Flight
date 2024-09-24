@@ -6,7 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import smtplib
 from email.mime.text import MIMEText
-from datetime import datetime
+
 import time
 import requests
 import json
@@ -57,11 +57,8 @@ def send_kakao_message(text):
 # Gmail 보내기
 
 def send_email(full_message, sender_email, sender_password, receiver_email):
-    # 현재 날짜와 시간 가져오기
-    current_time = datetime.now().strftime('%Y-%m-%d(%a) %H:%M')
-
     # 메일 제목 설정
-    subject = f"제주공항 현황 : {current_time}"
+    subject = f"제주공항 현황 : {config.current_time}"
 
     # SMTP 서버 설정 및 로그인
     smtp = smtplib.SMTP('smtp.gmail.com', 587)
@@ -107,12 +104,12 @@ def go_to_first_page():
         print(f"Error navigating to the first page: {e}")
 
 # 페이지네이션을 통해 모든 텍스트 수집
-def collect_all_pagination_texts():
+def collect_all_pagination_texts(disruptions_texts):
     go_to_first_page()  # Ensure we start from the first page
     while True:
         disruptions_text = get_disruptions_text()
         if disruptions_text:
-            config.disruptions_texts.append(disruptions_text)
+            disruptions_texts.append(disruptions_text)
 
         # 다음 페이지 버튼을 찾기
         try:
