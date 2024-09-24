@@ -36,22 +36,14 @@ Helpers.prework_button_click()
 all_results = ""
 for i in range(0, len(flight_numbers) , 1) :
     cleaned_flight_number = flight_numbers[i].strip().upper()
-    all_results += Helpers.fetch_flight_info(config.driver, cleaned_flight_number, passenger_numbers[i])
+    #항공편 찾고 드랍 박스 클릭 후 정보 크롤링 후 정보 번역 후 저장
+    all_results += Helpers.fetch_flight_info( cleaned_flight_number, passenger_numbers[i])
 
 
 # 드라이버 종료
 config.driver.quit()
 
 
-
-# # 수집한 텍스트 출력
-# print( "\n\n\n제주공항 현황\n" + "="*48 )
-# formatted_disruptions = format_disruption_texts(disruptions_texts)
-# print(formatted_disruptions)
-
-# # 항공편 결과 출력
-# print("="*50 + "\n")
-# print(all_results)
 
 
 # 전체 메세지 내용

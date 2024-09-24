@@ -1,0 +1,13 @@
+{
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": "string.quoted.docstring.multi.python",
+                "settings": {
+                    "foreground": "#fbbefd", // 원하는 색상 코드로 변경
+                    "fontStyle": "bold"
+                }
+            }
+        ]
+    }
+}

@@ -19,3 +19,37 @@ driver = webdriver.Chrome(service=service)
 sender_email = 'lym.coastal@gmail.com'
 sender_password = 'oenh ankm dtoj yfsq'
 receiver_email = 'leecl2s@hotmail.com'
+
+
+# key 정보
+key_inf = [
+    "FROM",
+    "SCHEDULED DEPARTURE",
+    "ACTUAL DEPARTURE",
+    "SCHEDULED ARRIVAL",
+    "STATUS",
+    "GATE",
+    "BAGGAGE BELT",
+]
+
+# 정보 수집을 위한 XPath 리스트
+xpaths_text = {
+    "FROM": f'//*[@id="항공편"]/div[1]/div/div/div[3]/div[1]',
+    "SCHEDULED DEPARTURE": f'//*[@id="항공편"]/div[2]/div[1]/div/div[1]/div[2]',
+    "ACTUAL DEPARTURE": f'//*[@id="항공편"]/div[2]/div[1]/div/div[2]/div[2]',
+    "SCHEDULED ARRIVAL": f'//*[@id="항공편"]/div[2]/div[1]/div/div[3]/div[2]',
+    "STATUS": f'//*[@id="항공편"]/div[2]/div[1]/div/div[5]/div[2]',
+    "GATE": f'//*[@id="항공편"]/div[2]/div[3]/div[2]/div/div[2]',
+    "BAGGAGE BELT": f'//*[@id="항공편"]/div[2]/div[3]/div[3]/div/div[2]'
+}
+
+# 한글 번역 딕셔너리
+translations = {
+    "FROM": "    항공 출발지",
+    "SCHEDULED DEPARTURE": "예정 출발 시간",
+    "ACTUAL DEPARTURE": "실제 출발 시간",
+    "SCHEDULED ARRIVAL": "예정 도착 시간",
+    "STATUS": "상태",
+    "GATE": "게이트",
+    "BAGGAGE BELT": "수하물 벨트"
+}
