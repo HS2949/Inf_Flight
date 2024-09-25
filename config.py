@@ -1,25 +1,35 @@
-
 # config.py
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from datetime import datetime
 
-#flightradar24 주소
-url = 'https://www.flightradar24.com/airport/cju/arrivals'
+# flightradar24 주소
+url = "https://www.flightradar24.com/airport/cju/arrivals"
 
-current_time = datetime.now().strftime('%Y-%m-%d(%a) %H:%M')
+# 현재시간 정의
+current_time = datetime.now().strftime("%Y-%m-%d(%a) %H:%M")
+
+# 반복 시간 (초)
+set_sec = 5 * 60
+
+# 전체 메세지 내용
+full_message = f"\n\n제주공항 현황 : {current_time}\n" + "=" * 50 + "\n"
+
 
 # WebDriver 설정
 driver_path = "D:/Py_code/chromedriver.exe"
 service = Service(driver_path)
-#service = ChromeService(executable_path=ChromeDriverManager().install())
+# service = ChromeService(executable_path=ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service)
 
 # 수집한 텍스트를 메일로 보내기
-sender_email = 'lym.coastal@gmail.com'
-sender_password = 'oenh ankm dtoj yfsq'
-receiver_email = 'leecl2s@hotmail.com'
+subject = f"항공기 도착 정보 : {current_time}"
+sender_email = "lym.coastal@gmail.com"
+sender_password = "oenh ankm dtoj yfsq"
+receiver_email = "leecl2s@hotmail.com"
 
+# 항공편 정보들을 저장할 리스트
+all_Plain_results = []
 
 # key 정보
 key_inf = [
@@ -38,9 +48,9 @@ xpaths_text = {
     "SCHEDULED DEPARTURE": f'//*[@id="항공편"]/div[2]/div[1]/div/div[1]/div[2]',
     "ACTUAL DEPARTURE": f'//*[@id="항공편"]/div[2]/div[1]/div/div[2]/div[2]',
     "SCHEDULED ARRIVAL": f'//*[@id="항공편"]/div[2]/div[1]/div/div[3]/div[2]',
-    "STATUS": f'//*[@id="항공편"]/div[2]/div[1]/div/div[5]/div[2]',
+    "STATUS": f'//*[@id="항공편"]/div[2]/div[1]/div/div[4]/div[2]',
     "GATE": f'//*[@id="항공편"]/div[2]/div[3]/div[2]/div/div[2]',
-    "BAGGAGE BELT": f'//*[@id="항공편"]/div[2]/div[3]/div[3]/div/div[2]'
+    "BAGGAGE BELT": f'//*[@id="항공편"]/div[2]/div[3]/div[3]/div/div[2]',
 }
 
 # 한글 번역 딕셔너리
@@ -51,5 +61,5 @@ translations = {
     "SCHEDULED ARRIVAL": "예정 도착 시간",
     "STATUS": "상태",
     "GATE": "게이트",
-    "BAGGAGE BELT": "수하물 벨트"
+    "BAGGAGE BELT": "수하물 벨트",
 }
