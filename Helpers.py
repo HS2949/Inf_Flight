@@ -13,6 +13,7 @@ import requests
 import json
 import re
 
+import xmltodict
 
 def click_continue():
     """continue 버튼 클릭 (쿠키 메시지 처리)"""
@@ -73,7 +74,7 @@ def send_email(full_message, sender_email, sender_password, receiver_email):
     # SMTP 객체 닫기
     smtp.quit()
 
-    print(f"\n\n메일을 성공적으로 보냈습니다. {receiver_email} \n {config.subject}")
+    print(f"\n\n메일을 성공적으로 보냈습니다. {receiver_email} \n {config.subject}\n")
 
 
 def get_disruptions_text():
@@ -101,7 +102,10 @@ def pagination_work():
         collect_all_pagination_texts(disruptions_texts)
 
         # 텍스트 결과 편집하여 저장
-        config.full_message += format_disruption_texts(disruptions_texts) + "\n\n\n"
+        config.full_message += format_disruption_texts(disruptions_texts)
+
+        # 주차장 정보 얻기
+        config.full_message += get_airport_parking_data() + "\n\n\n"
 
     except Exception as e:
         print(f"Error navigating to the first page")
@@ -313,9 +317,9 @@ def text_flight_info(flight_number, passenger_number, results):
                             ),
                             extract_time_from_text("time", results["STATUS"]),
                         )
-                        txt = f"({'+' if minutes_difference > 0 else ''}{minutes_difference} min)"
+                        txt = f"({'+' if minutes_difference > 0 else ''}{minutes_difference} min)" if minutes_difference != 0 else ""
                 # result_str += f"{key:20} : {merge_lines(results[key]):<30} {txt} \n"   #영문
-                result_str += f"{config.translations[key]:20} : {results[key]:<30} {txt} \n"  # 한글
+                result_str += f"{config.translations[key]} :".ljust(15) + f"{results[key]}".rjust(10) + f"{txt}".rjust(25) + f"\n" if results[key] != "" else ""  # 한글
         return result_str
 
     except Exception as e:
@@ -418,3 +422,77 @@ def prework_button_click():
 
     # "Load later flights" 버튼 클릭
     click_button('button[data-testid="airport-arrival-departure__load-later-flights"]')
+
+
+
+
+def get_airport_parking_data():
+    """공항 주차장 정보 크롤링 API"""
+    try:
+        # API로부터 데이터 가져오기
+        response = requests.get(config.parking_url)
+
+        # XML 데이터를 JSON 형식으로 변환
+        if response.status_code == 200:
+            xml_data = response.content
+            dict_data = xmltodict.parse(xml_data)
+            json_data = json.dumps(dict_data, indent=4, ensure_ascii=False)
+
+            # JSON 데이터 파싱
+            data = json.loads(json_data)
+
+            # 저장할 딕셔너리
+            parking_data = {}
+
+            # 각 항목을 처리
+            for item in data["response"]["body"]["items"]["item"]:
+                parking_name = item["parkingAirportCodeName"]
+                parking_date = item["parkingGetdate"]
+                parking_time = item["parkingGettime"]
+                
+
+                # parkingGetdate와 parkingGettime을 합쳐서 datetime 형식으로 저장
+                get_time = datetime.strptime(f"{parking_date} {parking_time}", "%Y-%m-%d %H:%M:%S")
+
+                # 딕셔너리에 저장할 데이터
+                parking_data[parking_name] = {
+                    "parkingFullSpace": item["parkingFullSpace"],
+                    "parkingIincnt": item["parkingIincnt"],
+                    "parkingIoutcnt": item["parkingIoutcnt"],
+                    "parkingIstay": item["parkingIstay"],
+                    "GetTime": get_time
+                }
+
+
+                            
+            # 요일을 한글로 변환
+            weekdays_kr = ['월', '화', '수', '목', '금', '토', '일'] # 한글 요일 리스트
+            day_of_week = weekdays_kr[get_time.weekday()]
+            formatted_time = get_time.strftime(f"%Y-%m-%d ({day_of_week}) %p %I:%M")
+            text_output = f"\n        ☞ 주차장 현황  {formatted_time}\n"
+
+            # 각 항목을 처리
+            for item in data["response"]["body"]["items"]["item"]:
+                parking_name = item["parkingAirportCodeName"]
+                parking_full_space = int(item["parkingFullSpace"])
+                parking_stay = int(item["parkingIstay"])  
+                
+                # 사용 비율 계산 (소수점 반올림하여 백분율로 표시)
+                usage_percentage = round((parking_stay / parking_full_space) * 100)
+
+                # 여유 공간 계산
+                remaining_space = parking_full_space - parking_stay
+                
+                # 주차장 상태 문자열 작성
+                text_output += f"             - {parking_name:<12} ({usage_percentage:>3}%)    여유 : ".rjust(30)
+                text_output += f"{remaining_space:<7}({parking_stay:>4} / {parking_full_space:>4})".rjust(10) + f"\n"  # 현재 주차량과 총 공간을 우측에 맞춰 표시
+                
+            return text_output
+        else:
+            print(f"주차정보 에러 : {response.status_code}")
+            return None
+
+    except requests.exceptions.RequestException as e:
+        print(f"주차정보 에러 : {response.status_code}")
+        return None
+

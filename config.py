@@ -28,6 +28,10 @@ sender_email = "lym.coastal@gmail.com"
 sender_password = "oenh ankm dtoj yfsq"
 receiver_email = "leecl2s@hotmail.com"
 
+
+# 주차장 정보 API URL https://www.data.go.kr/data/15056803/openapi.do
+parking_url = "http://openapi.airport.co.kr/service/rest/AirportParking/airportparkingRT?serviceKey=DVrkDmVa%2BZW5rqwIvZ2FSN4nL85THjVxlxbGk8QT8Gan5A9ykcS6s9CA1LsCKHWr%2B0Aum%2BLJUgBmrbkMqaSA7w%3D%3D&schAirportCode=CJU"
+
 # 항공편 정보들을 저장할 리스트
 all_Plain_results = []
 

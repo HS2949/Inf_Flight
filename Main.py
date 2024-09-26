@@ -71,7 +71,7 @@ try:
         # 현재시간 재정의
         config.current_time = datetime.now().strftime("%Y-%m-%d(%a) %H:%M")
         print(
-            f"■ Loop : {int(iter_sec / 60)} 분 대기합니다. 현재 시간: {config.current_time}"
+            f"\n ■ Loop : {int(iter_sec / 60)} 분 대기합니다. 현재 시간: {config.current_time} \n\n"
         )
 
         time.sleep(iter_sec)  # 분 단위로 변환하여 대기
