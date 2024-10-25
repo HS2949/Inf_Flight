@@ -13,15 +13,16 @@ import requests
 import json
 import re
 import pandas as pd
-
+import copy
 import xmltodict
+
 
 def extract_flight_data():
     """CSV 파일 읽기 (시간, 항공편 입력 값)
 
     Returns:
         시작 시간, 종료 시간, 항공편명, 인원정보
-    """    
+    """
     # CSV 파일 읽기
     csv_file_path = "Plain_Inf.csv"
     csv_data = pd.read_csv(csv_file_path, header=None)
@@ -38,12 +39,16 @@ def extract_flight_data():
     passenger_numbers = flight_data["메모(인원)"].tolist()
 
     # 시작 시간과 종료 시간을 '09월 27일 12:00' 형식에서 datetime 객체로 변환
-    start_time = datetime.strptime(start_time_str, "%m월 %d일 %H:%M").replace(year=datetime.now().year)
-    end_time = datetime.strptime(end_time_str, "%m월 %d일 %H:%M").replace(year=datetime.now().year)
+    start_time = datetime.strptime(start_time_str, "%m월 %d일 %H:%M").replace(
+        year=datetime.now().year
+    )
+    end_time = datetime.strptime(end_time_str, "%m월 %d일 %H:%M").replace(
+        year=datetime.now().year
+    )
 
     print(f"- 프로그램 시작 시간 : " + start_time.strftime("%Y-%m-%d(%a) %H:%M"))
     print(f"- 프로그램 종료 시간 : " + end_time.strftime("%Y-%m-%d(%a) %H:%M"))
-    print(f"# 현재 시간 : " + datetime.now().strftime("%Y-%m-%d(%a) %H:%M"))
+    print(f"# 현재 시간 : " + datetime.now().strftime("%Y-%m-%d(%a) %H:%M  %Ss"))
 
     return start_time, end_time, flight_numbers, passenger_numbers
 
@@ -53,7 +58,7 @@ def get_seconds_since_midnight():
 
     Returns:
          int: 자정부터 현재까지의 초 단위 시간
-    """    
+    """
     now = datetime.now()
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     return (now - midnight).seconds
@@ -207,7 +212,7 @@ def collect_all_pagination_texts(disruptions_texts):
 
 def format_disruption_texts(texts):
     """(초기) 텍스트를 원하는 형식으로 변환하는 함수 (한글 번역)"""
-    formatted_text = "" #"\n" + "=" * 50 + "\n"
+    formatted_text = ""  # "\n" + "=" * 50 + "\n"
     # 처리할 순서 정의 (3, 2, 1, 4 순서)
     order = [2, 1, 0, 3]
 
@@ -216,7 +221,9 @@ def format_disruption_texts(texts):
         text = texts[idx]
         lines = text.split("\n")
         category = lines[0]
-        formatted_text += f"\n{'-'*40}\n       {category}\n{'-'*40}\n" if idx == 2 else ""
+        formatted_text += (
+            f"\n{'-'*40}\n       {category}\n{'-'*40}\n" if idx == 2 else ""
+        )
         # 마지막 줄을 제외한 모든 줄을 반복
         for i in range(1, len(lines) - 1, 2):
             # 항목명 번역
@@ -228,7 +235,13 @@ def format_disruption_texts(texts):
                 .replace("DISRUPTION INDEX", "혼잡도 지수")
             )
 
-            key_korean = f"     ※ {key_korean} (어제) " if idx == 0 else f"     ※ {key_korean} (내일) "  if idx == 3 else f"☞ {key_korean:15}"
+            key_korean = (
+                f"     ※ {key_korean} (어제) "
+                if idx == 0
+                else (
+                    f"     ※ {key_korean} (내일) " if idx == 3 else f"☞ {key_korean:15}"
+                )
+            )
             formatted_text += f"        {key_korean} : {lines[i+1].replace("(","  (")}"
             if "DISRUPTION INDEX" in lines[i]:
                 disruption_value = float(lines[i + 1])
@@ -248,17 +261,17 @@ def format_disruption_texts(texts):
         formatted_text.replace("YESTERDAY", "어제")
         .replace("TODAY", "오늘")
         .replace("TOMORROW", "내일")
-        .replace("FLIGHT DISRUPTIONS", "제주공항 운항 현황") #"항공편 운항 지연"
+        .replace("FLIGHT DISRUPTIONS", "제주공항 운항 현황")  # "항공편 운항 지연"
         .replace("CURRENT DISRUPTIONS", "현재 혼잡 상황")
     )
 
     # Full message에 공항 혼잡도 정보 넣기
-    formatted_text += "=" * 35 
+    formatted_text += "=" * 35
 
     return formatted_text.strip()
 
 
-def fetch_flight_info(flight_number, passenger_number):
+def fetch_flight_info(flight_number):
     """항공편 찾고 드랍박스 클릭 후 정보 크롤링 - 항공편 1개
     Returns:
         results : key에 대한 항공편 값을 저장
@@ -303,7 +316,7 @@ def fetch_flight_info(flight_number, passenger_number):
                     results[key] = merge_lines(element.text.strip())
 
             except Exception as e:
-                #print(f"Error finding element for {key}")
+                # print(f"Error finding element for {key}")
                 results[key] = "N/A"
 
         # all_Plain_resultsdml 전체 배열에 각 편의 정보(results) 저장
@@ -321,8 +334,48 @@ def fetch_flight_info(flight_number, passenger_number):
         return None  # f"\n{'Flight Number':20} : {flight_number:10} - {passenger_number} 명\n  No data found.\n"
 
 
+def track_changes(current_data, previous_data):
+    """항공편을 기준으로 딕셔너리에서 키와 값을 비교하여 변경된 부분만 저장
+
+    Args:
+        current_data (_type_): 현재의 딕셔너리
+        previous_data (_type_): 이전의 딕셔너리
+
+    Returns:
+        딕셔너리 형태로 반환
+    """
+
+    # To store the changes that have occurred
+    changes = {}
+
+    # Iterate through each dictionary (flight)
+    for current_flight in current_data:
+        if current_flight is None:
+            continue
+
+        flight_number = current_flight.get('flight_number')
+        # Find the previous flight data for the given flight_number
+        previous_flight = None
+        if previous_data:
+            previous_flight = next((flight for flight in previous_data if flight and flight.get('flight_number') == flight_number), None)
+
+        # If previous data does not exist or if previous data exists and values are different, record changes
+        flight_changes = {}
+        for key in current_flight:
+            if key != 'flight_number' and (previous_flight is None or current_flight[key] != previous_flight.get(key)):
+                flight_changes[key] = {
+                    'previous': previous_flight.get(key) if previous_flight else None,
+                    'current': current_flight[key]
+                }
+
+        if flight_changes:
+            changes[flight_number] = flight_changes
+
+    return changes
+
+
 def text_flight_info(flight_number, passenger_number, results):
-    """ 항공편 정보를 text 변환
+    """항공편 정보를 text 변환
     Returns:
         result_str: 텍스트 한글 번역 후 크롤링한 정보
     """
@@ -360,9 +413,20 @@ def text_flight_info(flight_number, passenger_number, results):
                             ),
                             extract_time_from_text("time", results["STATUS"]),
                         )
-                        txt = f"({'+' if minutes_difference > 0 else ''}{minutes_difference} min)" if minutes_difference != 0 else ""
+                        txt = (
+                            f"({'+' if minutes_difference > 0 else ''}{minutes_difference} min)"
+                            if minutes_difference != 0
+                            else ""
+                        )
                 # result_str += f"{key:20} : {merge_lines(results[key]):<30} {txt} \n"   #영문
-                result_str += f"{config.translations[key]} :".ljust(15) + f"{results[key]}".rjust(10) + f"{txt}".rjust(25) + f"\n" if results[key] != "" else ""  # 한글
+                result_str += (
+                    f"{config.translations[key]} :".ljust(15)
+                    + f"{results[key]}".rjust(10)
+                    + f"{txt}".rjust(25)
+                    + f"\n"
+                    if results[key] != ""
+                    else ""
+                )  # 한글
         return result_str
 
     except Exception as e:
@@ -371,26 +435,48 @@ def text_flight_info(flight_number, passenger_number, results):
         # print(f"         No data found.\n")
         return f"\n{'Flight Number':20} : {flight_number:10} - {passenger_number} 명\n     No data found.\n"
 
-def Get_Plain_Data(flight_numbers, passenger_numbers):
-    """ 전체 항공편 딕셔너리 추출
+
+def Get_Plain_Data(flight_numbers, all_Plain_results):
+    """전체 항공편 딕셔너리 추출
+    Returns:
+        all_Plain_results : 전체 항공편 딕셔너리
+    """
+    # 항공편 정보들을 저장할 리스트
+    all_Plain_results_old = copy.deepcopy(
+        all_Plain_results
+    )  # 현재 상태의 복사본을 저장
+    all_Plain_results = []
+    for i in range(0, len(flight_numbers), 1):
+
+        # 항공편 찾고 드랍 박스 클릭 후 정보 크롤링
+        Plain_result = fetch_flight_info(flight_numbers[i].strip().upper())
+
+        # 전체 딕셔너리에 해당 항공편 딕셔너리 추가
+        all_Plain_results.append(Plain_result)
+
+    return all_Plain_results, all_Plain_results_old
+
+
+def Get_Plain_text(all_Plain_results, passenger_numbers):
+    """전체 항공편 딕셔너리 정보를 텍스트로 변환
     Returns:
         all_Plain_txt : 해당 시간의 전체 항공편 딕셔너리
     """
-    all_Plain_txt = ""  # 항공편 텍스트 초기화
-    for i in range(0, len(flight_numbers), 1):
-        cleaned_flight_number = flight_numbers[i].strip().upper()
-                # 항공편 찾고 드랍 박스 클릭 후 정보 크롤링
-        Plain_result = fetch_flight_info(cleaned_flight_number, passenger_numbers[i])
-        #전체 딕셔너리에 해당 항공편 딕셔너리 추가
-        config.all_Plain_results.append(Plain_result)
+    all_Plain_txt = ""
+    for i, dictionary in enumerate(all_Plain_results):
+        # print(f"Dictionary {i}:")
+        cleaned_flight_number = dictionary["flight_number"].strip().upper()
 
         # 크롤링한 정보를 텍스트화 : 번역
-        Plain_txt = text_flight_info(cleaned_flight_number, passenger_numbers[i], Plain_result)
+        Plain_txt = text_flight_info(
+            cleaned_flight_number, passenger_numbers[i], dictionary
+        )
 
-        #전체 텍스트에 해당 항공편 텍스트 추가
+        # 전체 텍스트에 해당 항공편 텍스트 추가
         all_Plain_txt += Plain_txt
 
     return all_Plain_txt
+
 
 def calculate_time_difference(type, time_str1, time_str2):
     """텍스트 형식의 두 시간 차이 계산
@@ -487,8 +573,6 @@ def prework_button_click():
     click_button('button[data-testid="airport-arrival-departure__load-later-flights"]')
 
 
-
-
 def get_airport_parking_data():
     """공항 주차장 정보 크롤링 API"""
     try:
@@ -512,10 +596,11 @@ def get_airport_parking_data():
                 parking_name = item["parkingAirportCodeName"]
                 parking_date = item["parkingGetdate"]
                 parking_time = item["parkingGettime"]
-                
 
                 # parkingGetdate와 parkingGettime을 합쳐서 datetime 형식으로 저장
-                get_time = datetime.strptime(f"{parking_date} {parking_time}", "%Y-%m-%d %H:%M:%S")
+                get_time = datetime.strptime(
+                    f"{parking_date} {parking_time}", "%Y-%m-%d %H:%M:%S"
+                )
 
                 # 딕셔너리에 저장할 데이터
                 parking_data[parking_name] = {
@@ -523,13 +608,11 @@ def get_airport_parking_data():
                     "parkingIincnt": item["parkingIincnt"],
                     "parkingIoutcnt": item["parkingIoutcnt"],
                     "parkingIstay": item["parkingIstay"],
-                    "GetTime": get_time
+                    "GetTime": get_time,
                 }
 
-
-                            
             # 요일을 한글로 변환
-            weekdays_kr = ['월', '화', '수', '목', '금', '토', '일'] # 한글 요일 리스트
+            weekdays_kr = ["월", "화", "수", "목", "금", "토", "일"]  # 한글 요일 리스트
             day_of_week = weekdays_kr[get_time.weekday()]
             formatted_time = get_time.strftime(f"%Y-%m-%d ({day_of_week}) %p %I:%M")
             text_output = f"\n        ☞ 주차장 현황  {formatted_time}\n"
@@ -538,18 +621,25 @@ def get_airport_parking_data():
             for item in data["response"]["body"]["items"]["item"]:
                 parking_name = item["parkingAirportCodeName"]
                 parking_full_space = int(item["parkingFullSpace"])
-                parking_stay = int(item["parkingIstay"])  
-                
+                parking_stay = int(item["parkingIstay"])
+
                 # 사용 비율 계산 (소수점 반올림하여 백분율로 표시)
                 usage_percentage = round((parking_stay / parking_full_space) * 100)
 
                 # 여유 공간 계산
                 remaining_space = parking_full_space - parking_stay
-                
+
                 # 주차장 상태 문자열 작성
-                text_output += f"             - {parking_name:<12} ({usage_percentage:>3}%)    여유 : ".rjust(30)
-                text_output += f"{remaining_space:<7}({parking_stay:>4} / {parking_full_space:>4})".rjust(10) + f"\n"  # 현재 주차량과 총 공간을 우측에 맞춰 표시
-                
+                text_output += f"             - {parking_name:<12} ({usage_percentage:>3}%)    여유 : ".rjust(
+                    30
+                )
+                text_output += (
+                    f"{remaining_space:<7}({parking_stay:>4} / {parking_full_space:>4})".rjust(
+                        10
+                    )
+                    + f"\n"
+                )  # 현재 주차량과 총 공간을 우측에 맞춰 표시
+
             return text_output
         else:
             print(f"주차정보 에러 : {response.status_code}")
@@ -558,5 +648,3 @@ def get_airport_parking_data():
     except requests.exceptions.RequestException as e:
         print(f"주차정보 에러 : {response.status_code}")
         return None
-
-
