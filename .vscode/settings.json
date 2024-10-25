@@ -9,5 +9,9 @@
                 }
             }
         ]
-    }
+    },
+    "editor.guides.bracketPairs": true,
+    "dart.previewFlutterUiGuides": true,
+    "dart.previewFlutterUiGuidesCustomTracking": true,
+    //"git.enabled": true
 }

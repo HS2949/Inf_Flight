@@ -7,13 +7,57 @@ from selenium.webdriver.support import expected_conditions as EC
 import smtplib
 from email.mime.text import MIMEText
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import requests
 import json
 import re
+import pandas as pd
 
 import xmltodict
+
+def extract_flight_data():
+    """CSV 파일 읽기 (시간, 항공편 입력 값)
+
+    Returns:
+        시작 시간, 종료 시간, 항공편명, 인원정보
+    """    
+    # CSV 파일 읽기
+    csv_file_path = "Plain_Inf.csv"
+    csv_data = pd.read_csv(csv_file_path, header=None)
+
+    # 시작 시간과 종료 시간 정보 추출
+    start_time_str = csv_data.iloc[1, 0] + " " + csv_data.iloc[1, 1]
+    end_time_str = csv_data.iloc[3, 0] + " " + csv_data.iloc[3, 1]
+
+    # 항공편과 메모(인원) 정보만 새로운 DataFrame으로 저장
+    flight_data = pd.read_csv(csv_file_path, skiprows=4)
+
+    # 항공편 번호 목록과 인원 정보를 각각 리스트로 변환
+    flight_numbers = flight_data["항공편"].tolist()
+    passenger_numbers = flight_data["메모(인원)"].tolist()
+
+    # 시작 시간과 종료 시간을 '09월 27일 12:00' 형식에서 datetime 객체로 변환
+    start_time = datetime.strptime(start_time_str, "%m월 %d일 %H:%M").replace(year=datetime.now().year)
+    end_time = datetime.strptime(end_time_str, "%m월 %d일 %H:%M").replace(year=datetime.now().year)
+
+    print(f"- 프로그램 시작 시간 : " + start_time.strftime("%Y-%m-%d(%a) %H:%M"))
+    print(f"- 프로그램 종료 시간 : " + end_time.strftime("%Y-%m-%d(%a) %H:%M"))
+    print(f"# 현재 시간 : " + datetime.now().strftime("%Y-%m-%d(%a) %H:%M"))
+
+    return start_time, end_time, flight_numbers, passenger_numbers
+
+
+def get_seconds_since_midnight():
+    """현재 시간을 00시 00분 기준으로 초 단위로 변환
+
+    Returns:
+         int: 자정부터 현재까지의 초 단위 시간
+    """    
+    now = datetime.now()
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return (now - midnight).seconds
+
 
 def click_continue():
     """continue 버튼 클릭 (쿠키 메시지 처리)"""
@@ -222,7 +266,7 @@ def fetch_flight_info(flight_number, passenger_number):
     """
     try:
         # 'flight_number' 텍스트를 포함하는 li 요소 찾기
-        print(f"항공편 : {flight_number} 조회 중..")
+        # print(f"항공편 : {flight_number} 조회 중..")
         flight_li = WebDriverWait(config.driver, 10).until(
             EC.presence_of_element_located(
                 (By.XPATH, f'//li[contains(., "{flight_number}")]')
@@ -259,16 +303,15 @@ def fetch_flight_info(flight_number, passenger_number):
                     results[key] = merge_lines(element.text.strip())
 
             except Exception as e:
-                print(f"Error finding element for {key}")
+                #print(f"Error finding element for {key}")
                 results[key] = "N/A"
 
         # all_Plain_resultsdml 전체 배열에 각 편의 정보(results) 저장
         results["flight_number"] = flight_number
-        config.all_Plain_results.append(results)
 
-        print(
-            f"           성공 : {flight_number:10} -  {merge_lines(results['FROM']):<20}\n         {results['SCHEDULED DEPARTURE']} → {results['SCHEDULED ARRIVAL']}"
-        )
+        # print(
+        #     f"           성공 : {flight_number:10} -  {merge_lines(results['FROM']):<20}\n         {results['SCHEDULED DEPARTURE']} → {results['SCHEDULED ARRIVAL']}"
+        # )
 
         return results
 
@@ -279,7 +322,7 @@ def fetch_flight_info(flight_number, passenger_number):
 
 
 def text_flight_info(flight_number, passenger_number, results):
-    """항공편 정보를 text 변환
+    """ 항공편 정보를 text 변환
     Returns:
         result_str: 텍스트 한글 번역 후 크롤링한 정보
     """
@@ -325,16 +368,36 @@ def text_flight_info(flight_number, passenger_number, results):
     except Exception as e:
         # print(f"Error finding and clicking the dropdown button or collecting information for {flight_number}: {e}")
         # print(f"#에러 : text_flight_info")
-        print(f"         No data found.\n")
+        # print(f"         No data found.\n")
         return f"\n{'Flight Number':20} : {flight_number:10} - {passenger_number} 명\n     No data found.\n"
 
+def Get_Plain_Data(flight_numbers, passenger_numbers):
+    """ 전체 항공편 딕셔너리 추출
+    Returns:
+        all_Plain_txt : 해당 시간의 전체 항공편 딕셔너리
+    """
+    all_Plain_txt = ""  # 항공편 텍스트 초기화
+    for i in range(0, len(flight_numbers), 1):
+        cleaned_flight_number = flight_numbers[i].strip().upper()
+                # 항공편 찾고 드랍 박스 클릭 후 정보 크롤링
+        Plain_result = fetch_flight_info(cleaned_flight_number, passenger_numbers[i])
+        #전체 딕셔너리에 해당 항공편 딕셔너리 추가
+        config.all_Plain_results.append(Plain_result)
+
+        # 크롤링한 정보를 텍스트화 : 번역
+        Plain_txt = text_flight_info(cleaned_flight_number, passenger_numbers[i], Plain_result)
+
+        #전체 텍스트에 해당 항공편 텍스트 추가
+        all_Plain_txt += Plain_txt
+
+    return all_Plain_txt
 
 def calculate_time_difference(type, time_str1, time_str2):
     """텍스트 형식의 두 시간 차이 계산
 
     Args:
-        type : integer = 정수 (절대값)
-               real, float = 실수 (양수, 음수)
+        type (text) : integer  = 정수 (절대값)
+                     real, float = 실수 (양수, 음수)
 
         time_str1 (text): "10:06 AM"
         time_str2 (text): datetime.now().strftime('%I:%M %p')
@@ -371,8 +434,8 @@ def calculate_time_difference(type, time_str1, time_str2):
 def extract_time_from_text(type, text):
     """텍스트에서 "10:06 AM" 형식의 시간 또는 시간 외 텍스트 추출
     Args:
-        type : text = 시간 외 텍스트 추출
-               time = 시간 텍스트 추출 "10:06 AM"
+        type (text) : text = 시간 외 텍스트 추출
+                      time = 시간 텍스트 추출 "10:06 AM"
     """
     try:
         if type == "time":
@@ -495,4 +558,5 @@ def get_airport_parking_data():
     except requests.exceptions.RequestException as e:
         print(f"주차정보 에러 : {response.status_code}")
         return None
+
 

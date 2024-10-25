@@ -1,80 +1,84 @@
+import time
+from datetime import datetime, timedelta
+
 import config
 import Helpers
 
-import time
-from datetime import datetime
-import pandas as pd
+# CSV 파일 읽기
+start_time, end_time, flight_numbers, passenger_numbers = Helpers.extract_flight_data()
 
-# CSV 파일에서 항공편 번호 및 인원 정보 불러오기
-csv_file_path = "Plain_Inf.csv"
-csv_data = pd.read_csv(csv_file_path)
+# 프로그램 시작 시간까지 대기
+if datetime.now() < start_time:
+    wait_time = (start_time - datetime.now()).total_seconds()
+    print(f"  루프 시작까지 약 {wait_time // 60:.0f}분 대기합니다.")
+    time.sleep(wait_time)
 
-# 항공편 번호 목록과 인원 정보를 각각 리스트로 변환
-flight_numbers = csv_data["항공편"].tolist()
-passenger_numbers = csv_data["메모(인원)"].tolist()
+# 현재 시간이 종료 시간을 넘었으면 종료
+if datetime.now() >= end_time:
+    print("종료 시간이 되어 프로그램을 종료합니다.")
+    raise SystemExit  # 프로그램 종료
 
 # Flightradar24에서 특정 공항의 도착 페이지 열기
 config.driver.get(config.url)
-
-# 페이지가 로드될 시간을 대기
-time.sleep(2)
-
-# "continue" 버튼 클릭 (쿠키 메시지 처리)
-Helpers.click_continue()
-
-# 비행 전후 버튼 클릭
-Helpers.prework_button_click()
+time.sleep(2)  # 페이지가 로드될 시간을 대기
+Helpers.click_continue()  # "continue" 버튼 클릭 (쿠키 메시지 처리)
+Helpers.prework_button_click()  # 비행 전후 버튼 클릭
 
 
-iter_sec = config.set_sec
-# 주기적으로 항공편 정보를 수집하는 루프
 try:
     while True:
+        # 현재 시간이 종료 시간을 넘었으면 종료
+        if datetime.now() >= end_time:
+            print("종료 시간이 되어 프로그램을 종료합니다.")
+            break
+
         # 전체 텍스트 : 초기화
         config.full_message = ""
         config.all_Plain_results = []  # 항공정보 변수 초기화
 
-        # 공항 혼잡도 및 정보 가져오기 (페이지네이션)
-        Helpers.pagination_work()
+        # 현재 시간을 00시 00분 기준으로 초 단위로 변환
+        seconds_since_midnight = Helpers.get_seconds_since_midnight()
 
-        # 각 항공 검색 후 해당  정보 가져오기
-        all_Plain_txt = ""  # 항공편 텍스트 초기화
-        for i in range(0, len(flight_numbers), 1):
-            cleaned_flight_number = flight_numbers[i].strip().upper()
-            # 항공편 찾고 드랍 박스 클릭 후 정보 크롤링
-            Plain_result = Helpers.fetch_flight_info(
-                cleaned_flight_number, passenger_numbers[i]
+        # ======================= 이메일 전송
+        if seconds_since_midnight % config.EMAIL_INTERVAL == 0:
+            print(f"# 이메일 시간 : " + datetime.now().strftime("%Y-%m-%d(%a) %H:%M  %Ss"))
+
+            # 공항 혼잡도 및 정보 가져오기 (페이지네이션)
+            Helpers.pagination_work()
+
+            # 항공편 정보 조회
+            all_Plain_txt = Helpers.Get_Plain_Data(flight_numbers, passenger_numbers)
+            print(f"Get_Plain_Data - 이메일")
+
+            # 전체 텍스트에 추가 : 항공편 루프 종료 후 넣기
+            config.full_message += all_Plain_txt
+            print(f"이메일 : " + datetime.now().strftime("%Y-%m-%d(%a) %H:%M  %Ss"))
+            # 수집한 텍스트를 메일로 보내기
+            Helpers.send_email(
+                config.full_message,
+                config.sender_email,
+                config.sender_password,
+                config.receiver_email,
             )
-            # 크롤링한 정보를 텍스트화 : 번역
-            Plain_txt = Helpers.text_flight_info(
-                cleaned_flight_number, passenger_numbers[i], Plain_result
-            )
-            all_Plain_txt += Plain_txt
 
-        # 전체 텍스트에 추가 : 항공편 루프 종료 후 넣기
-        config.full_message += all_Plain_txt
+        # ======================= 변경 확인 (카카오톡 전송)
+        if seconds_since_midnight % config.CHECK_INTERVAL == 0:
+            print(f"# 카카오톡 시간 : " + datetime.now().strftime("%Y-%m-%d(%a) %H:%M %Ss"))
+            # 항공편 정보 조회 :가져오지 않았을 경우에만 조회  (메일 보내지 않았을 경우)
+            if seconds_since_midnight % config.EMAIL_INTERVAL != 0:
+                all_Plain_txt = Helpers.Get_Plain_Data(
+                    flight_numbers, passenger_numbers
+                )
+                
+            
 
-        # print(config.full_message)
+            print(f"변경확인 : " + datetime.now().strftime("%Y-%m-%d(%a) %H:%M  %Ss"))
+            # # 항공편 정보가 변경되었을 경우 카카오톡 알림 전송
+            # if flight_info_changed(flight_info):
+            #     send_kakao_notification(flight_info)
 
-        # 수집한 텍스트를 KakaoTalk로 보내기
-        # send_kakao_message(config.full_message)
-
-        # 수집한 텍스트를 메일로 보내기
-        Helpers.send_email(
-            config.full_message,
-            config.sender_email,
-            config.sender_password,
-            config.receiver_email,
-        )
-
-        # iter_min 값에 따라 n분 대기
-        # 현재시간 재정의
-        config.current_time = datetime.now().strftime("%Y-%m-%d(%a) %H:%M")
-        print(
-            f"\n ■ Loop : {int(iter_sec / 60)} 분 대기합니다. 현재 시간: {config.current_time} \n\n"
-        )
-
-        time.sleep(iter_sec)  # 분 단위로 변환하여 대기
+        # 1초 대기 후 다시 체크
+        time.sleep(1)
 
 except KeyboardInterrupt:
     # 드라이버 종료

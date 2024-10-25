@@ -9,18 +9,26 @@ url = "https://www.flightradar24.com/airport/cju/arrivals"
 # 현재시간 정의
 current_time = datetime.now().strftime("%Y-%m-%d(%a) %H:%M")
 
-# 반복 시간 (초)
-set_sec = 5 * 60
+# CHECK_INTERVAL 값 (사용자 설정 가능)
+CHECK_INTERVAL = 30  # 항공편 정보를 확인하는 간격 (초)
+EMAIL_INTERVAL = 300  # 이메일을 보내는 간격 (초, 5분 = 300초)
 
 # 전체 메세지 내용
 full_message = f"\n\n제주공항 현황 : {current_time}\n" + "=" * 50 + "\n"
 
 
+# Chrome 옵션 설정
+chrome_options = webdriver.ChromeOptions()
+
+# 창 크기 설정 (optional), # 창 위치 설정 (예: x=200, y=300)
+chrome_options.add_argument("window-size=1200,700")
+chrome_options.add_argument("window-position=1920,230")
+
 # WebDriver 설정
 driver_path = "D:/Py_code/chromedriver.exe"
 service = Service(driver_path)
 # service = ChromeService(executable_path=ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service)
+driver = webdriver.Chrome(service=service, options=chrome_options)
 
 # 수집한 텍스트를 메일로 보내기
 subject = f"항공기 도착 정보 : {current_time}"
