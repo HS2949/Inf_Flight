@@ -82,9 +82,13 @@ try:
             for flight, changes in flight_changes.items():
                 print(f"Changes for flight {flight}:")
                 for key, value in changes.items():
-                    print(
-                        f"  {key} changed from '{value['previous']}' to '{value['current']}'"
-                    )
+                    if value['previous'] == None:
+                        print(f"  {key}: {value['current']}")
+                    else:
+                        print(
+                            f"  {key} changed from {value['previous']} to {value['current']}"
+                        )
+
 
             # # 리스트 내의 모든 딕셔너리를 순회하며 각 키와 값을 출력
             # for index, dictionary in enumerate(all_Plain_results):

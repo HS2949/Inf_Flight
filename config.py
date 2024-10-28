@@ -11,7 +11,7 @@ current_time = datetime.now().strftime("%Y-%m-%d(%a) %H:%M")
 
 # CHECK_INTERVAL 값 (사용자 설정 가능)
 CHECK_INTERVAL = 30  # 항공편 정보를 확인하는 간격 (초)
-EMAIL_INTERVAL = 300  # 이메일을 보내는 간격 (초, 5분 = 300초)
+EMAIL_INTERVAL = 30  # 이메일을 보내는 간격 (초, 5분 = 300초)
 
 # 전체 메세지 내용
 full_message = f"\n\n제주공항 현황 : {current_time}\n" + "=" * 50 + "\n"

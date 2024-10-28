@@ -4,8 +4,10 @@ import config
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import NoSuchElementException
 import smtplib
 from email.mime.text import MIMEText
+
 
 from datetime import datetime, timedelta
 import time
@@ -277,30 +279,48 @@ def fetch_flight_info(flight_number):
         results : key에 대한 항공편 값을 저장
         all_Plain_results : 모든 항공편 값 저장
     """
+
+    # 결과 저장할 딕셔너리
+    results = {}
+    # all_Plain_resultsdml 전체 배열에 각 편의 정보(results) 저장
+    results["flight_number"] = flight_number
+
     try:
-        # 'flight_number' 텍스트를 포함하는 li 요소 찾기
-        # print(f"항공편 : {flight_number} 조회 중..")
-        flight_li = WebDriverWait(config.driver, 10).until(
-            EC.presence_of_element_located(
-                (By.XPATH, f'//li[contains(., "{flight_number}")]')
+        try:
+
+            # 'flight_number' 텍스트를 포함하는 li 요소 찾기
+            # print(f"항공편 : {flight_number} 조회 중..")
+            flight_li = WebDriverWait(config.driver, 10).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, f'//li[contains(., "{flight_number}")]')
+                )
             )
-        )
-        # 해당 li 요소 내에서 드롭박스 버튼 찾기
-        dropdown_button = flight_li.find_element(By.XPATH, './/button[@class="px-1"]')
 
-        # JavaScript를 사용하여 포커스 설정
-        config.driver.execute_script("arguments[0].focus();", dropdown_button)
+            # 항공편 ID 가져오기
+            flight_id = flight_li.get_attribute("id")
 
-        # 드롭박스 버튼 클릭
-        dropdown_button.click()
-        time.sleep(1)
-        # print(f"Dropdown button for {flight_number} clicked successfully.")
+            # 해당 li 요소 내에서 드롭박스 버튼 찾기
+            dropdown_button = flight_li.find_element(
+                By.XPATH, './/button[@class="px-1"]'
+            )
 
-        # 항공편 ID 가져오기
-        flight_id = flight_li.get_attribute("id")
+            # JavaScript를 사용하여 포커스 설정
+            config.driver.execute_script("arguments[0].focus();", dropdown_button)
 
-        # 결과 저장할 딕셔너리
-        results = {}
+            # 드롭다운 메뉴의 상태를 확인
+            dropdown_content = flight_li.find_element(
+                By.XPATH, './/div[@class="slide-up-down__container"]'
+            )
+            aria_hidden = dropdown_content.get_attribute("aria-hidden")
+
+            # aria-hidden이 "true"일 때만 클릭하여 드롭다운 열기
+            if aria_hidden == "true":
+                config.driver.execute_script("arguments[0].focus();", dropdown_button)
+                dropdown_button.click()
+                time.sleep(1)
+        except NoSuchElementException:
+            # 드롭다운 요소가 없으면 스킵하고 다음 코드 실행
+            pass
 
         # 각 XPath에 대해 텍스트 값을 가져오기
         for key, xpath in config.xpaths_text.items():
@@ -319,9 +339,6 @@ def fetch_flight_info(flight_number):
                 # print(f"Error finding element for {key}")
                 results[key] = "N/A"
 
-        # all_Plain_resultsdml 전체 배열에 각 편의 정보(results) 저장
-        results["flight_number"] = flight_number
-
         # print(
         #     f"           성공 : {flight_number:10} -  {merge_lines(results['FROM']):<20}\n         {results['SCHEDULED DEPARTURE']} → {results['SCHEDULED ARRIVAL']}"
         # )
@@ -331,7 +348,8 @@ def fetch_flight_info(flight_number):
     except Exception as e:
         # print(f"Error finding and clicking the dropdown button or collecting information for {flight_number}: {e}")
         # print(f"#에러 : {e}")
-        return None  # f"\n{'Flight Number':20} : {flight_number:10} - {passenger_number} 명\n  No data found.\n"
+        results["flight_number"] = "●● 항공편 없음 ●●  " + flight_number
+        return results  # f"\n{'Flight Number':20} : {flight_number:10} - {passenger_number} 명\n  No data found.\n"
 
 
 def track_changes(current_data, previous_data):
@@ -353,19 +371,29 @@ def track_changes(current_data, previous_data):
         if current_flight is None:
             continue
 
-        flight_number = current_flight.get('flight_number')
+        flight_number = current_flight.get("flight_number")
         # Find the previous flight data for the given flight_number
         previous_flight = None
         if previous_data:
-            previous_flight = next((flight for flight in previous_data if flight and flight.get('flight_number') == flight_number), None)
+            previous_flight = next(
+                (
+                    flight
+                    for flight in previous_data
+                    if flight and flight.get("flight_number") == flight_number
+                ),
+                None,
+            )
 
         # If previous data does not exist or if previous data exists and values are different, record changes
         flight_changes = {}
         for key in current_flight:
-            if key != 'flight_number' and (previous_flight is None or current_flight[key] != previous_flight.get(key)):
+            if key != "flight_number" and (
+                previous_flight is None
+                or current_flight[key] != previous_flight.get(key)
+            ):
                 flight_changes[key] = {
-                    'previous': previous_flight.get(key) if previous_flight else None,
-                    'current': current_flight[key]
+                    "previous": previous_flight.get(key) if previous_flight else None,
+                    "current": current_flight[key],
                 }
 
         if flight_changes:
@@ -382,7 +410,7 @@ def text_flight_info(flight_number, passenger_number, results):
     try:
         # 결과를 문자열로 저장
         result_str = (
-            f"\n{'Flight Number':20} : {flight_number:10} - {passenger_number} 명\n"
+            f"\n{'Flight Number':20} : {flight_number:10}  ☞ {passenger_number} 명\n"
         )
 
         # key에 따라 데이터 수정 및 조정
@@ -464,6 +492,11 @@ def Get_Plain_text(all_Plain_results, passenger_numbers):
     """
     all_Plain_txt = ""
     for i, dictionary in enumerate(all_Plain_results):
+
+        # dictionary가 None일 경우 skip
+        if dictionary is None:
+            continue
+
         # print(f"Dictionary {i}:")
         cleaned_flight_number = dictionary["flight_number"].strip().upper()
 
